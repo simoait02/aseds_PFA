@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1040122834483",
+    "project_id": "bons-plans-f2ec5",
+    "storage_bucket": "bons-plans-f2ec5.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1040122834483:android:340bb88b7e8bc23075bd46",
+        "android_client_info": {
+          "package_name": "com.ASEDS.BonsPlans.aseds"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXjk9QlF3KYN0zV_C4k9p5aRl7ORLc9Aw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

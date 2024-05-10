@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">bons plans</string>
+    <string name="facebook_app_id">1362040167788140</string>
+    <string name="fb_login_protocol_scheme">fb1db9a3a44b91165706ad07cd1be9cbb4</string>
+</resources>
