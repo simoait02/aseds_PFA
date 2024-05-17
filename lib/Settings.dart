@@ -26,6 +26,7 @@ class _settingsState extends State<settings>{
   final TextEditingController _username = TextEditingController();
   final TextEditingController _password = TextEditingController();
   final TextEditingController _Copassword = TextEditingController();
+
   Future<void> changePasswordWithVerification(String currentPassword, String newPassword) async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
@@ -79,6 +80,15 @@ class _settingsState extends State<settings>{
       });
     });
   }
+  Future<void> changeEmail(String newEmail) async {
+    try {
+      await user!.updateEmail(newEmail);
+      print('*************************************************Email updated successfully.');
+    } catch (error) {
+      print('Error updating email: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -222,6 +232,7 @@ class _settingsState extends State<settings>{
                                 const SizedBox(height: 20.0),
                                 OutlinedButton(
                                   onPressed: () {
+                                    changeEmail(_email.text);
                                     db.child(user!.uid).update({"email": _email.text}).then((_) {
                                       fetchData();
                                     });
@@ -239,7 +250,6 @@ class _settingsState extends State<settings>{
                   },
                   child: Icon(Icons.navigate_next_outlined,color: widget._darkMode?Colors.white : Colors.black,),
                 ),
-
               ],
             ),
           ),

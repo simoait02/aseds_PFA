@@ -200,7 +200,7 @@ class _RegisterState extends State<Register>{
                                 });
                                 Navigator.pushAndRemoveUntil(
                                   context,
-                                  MaterialPageRoute(builder: (context) => application()),
+                                  MaterialPageRoute(builder: (context) => Application()),
                                       (route) => false,
                                 );
                               }).catchError((error) {
@@ -213,28 +213,15 @@ class _RegisterState extends State<Register>{
                               });
                             }
                           }).onError((error, stackTrace) {
-                            String errorMessage;
                             if (error is FirebaseAuthException) {
                               String errorCode = (error).code;
-                              switch (errorCode) {
-                                case "email-already-in-use":
-                                  errorMessage = "The email address is already in use by another account.";
-                                  break;
-                                case "invalid-email":
-                                  errorMessage = "The email address is invalid.";
-                                  break;
-                                default:
-                                  errorMessage = "An error occurred: $errorCode";
-                              }
-                            } else {
-                              errorMessage = "An unknown error occurred";
+                              Fluttertoast.showToast(
+                                msg: errorCode,
+                                toastLength: Toast.LENGTH_SHORT,
+                                gravity: ToastGravity.BOTTOM,
+                                backgroundColor: Colors.red,
+                                textColor: Colors.white,);
                             }
-                            Fluttertoast.showToast(
-                              msg: errorMessage,
-                              toastLength: Toast.LENGTH_SHORT,
-                              gravity: ToastGravity.BOTTOM,
-                              backgroundColor: Colors.red,
-                              textColor: Colors.white,);
                           });
                         }
                       });

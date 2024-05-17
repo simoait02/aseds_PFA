@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'SignUp.dart';
 import 'myScreen.dart';
+import 'wrapper.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
@@ -16,7 +17,7 @@ void main() async{
   );
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
-    home: Login(),
+    home: Wrapper(),
   ));
 }
 
@@ -157,7 +158,7 @@ class _LoginState extends State<Login> {
                       FirebaseAuth.instance.signInWithEmailAndPassword(email: _email.text, password: _password.text).then((value) {
                         Navigator.pushAndRemoveUntil(
                           context,
-                          MaterialPageRoute(builder: (context) => application()),
+                          MaterialPageRoute(builder: (context) => Application()),
                               (route) => false,
                         );
                       }).onError((error, stackTrace) {
@@ -223,7 +224,7 @@ class _LoginState extends State<Login> {
                           }
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (context) => application()),
+                            MaterialPageRoute(builder: (context) => Application()),
                                 (route) => false,
                           );
                         } catch (e) {
@@ -258,14 +259,14 @@ class _LoginState extends State<Login> {
                           }
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (context) =>application()),
+                            MaterialPageRoute(builder: (context) =>Application()),
                                 (route) => false,
                           );
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => application()));
-                                                } catch (e) {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => Application()));
+                        } catch (e) {
                           print("**********************************"+e.toString());
                           Fluttertoast.showToast(
-                              msg: e.toString(),
+                              msg: "Error signing in with Facebook",
                               toastLength: Toast.LENGTH_SHORT,
                               gravity: ToastGravity.BOTTOM,
                               backgroundColor: Colors.red,
