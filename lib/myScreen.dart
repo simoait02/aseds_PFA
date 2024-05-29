@@ -1,14 +1,16 @@
 import 'dart:io';
-
 import 'package:aseds/Profile.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart';
-
 import 'Settings.dart';
 import 'main.dart';
 
@@ -24,10 +26,10 @@ class Application extends StatefulWidget {
 
 class _ApplicationState extends State<Application> {
 
-  bool _isComplete = false;
   late String? url;
   var user = FirebaseAuth.instance.currentUser;
   late DataSnapshot snapshot;
+  late DataSnapshot item;
   DatabaseReference db = FirebaseDatabase.instance.ref("users");
   DatabaseReference dbp = FirebaseDatabase.instance.ref("Postes");
   final TextEditingController _desc = TextEditingController();
@@ -37,10 +39,15 @@ class _ApplicationState extends State<Application> {
   void initState() {
     super.initState();
     _loadMoreItems();
-    _scrollController.addListener(_scrollListener);
+    _scrollController.addListener(() {_scrollListener();});
+    dbp.onChildRemoved.listen((DatabaseEvent event) {
+      final removedKey = event.snapshot.key;
+      setState(() {
+        _items.removeWhere((item) => item.key == removedKey);
+      });
+    });
     fetchData().then((_) {
       setState(() {
-        _isComplete = true;
       });
     });
   }
@@ -49,49 +56,17 @@ class _ApplicationState extends State<Application> {
     db.child(user!.uid).onValue.listen((DatabaseEvent event) {
       setState(() {
         snapshot = event.snapshot;
-        _isComplete = true;
       });
     });
-    snapshot = (await db.child(user!.uid).once()) as DataSnapshot;
-    setState(() {});
-  }
-
-  Widget _buildIcon() {
-    return StreamBuilder(
-      stream: FirebaseDatabase.instance.ref().child('users').child(user!.uid).child('photoUrl').onValue,
-      builder: (BuildContext context, AsyncSnapshot snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircularProgressIndicator();
-        } else if (snapshot.hasError) {
-          return Icon(
-            Icons.error_outline,
-            size: 30,
-            color: _darkMode ? Colors.white : Colors.black,
-          );
-        } else if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          return CircleAvatar(
-            backgroundImage: Image.network(
-              snapshot.data!.snapshot.value.toString(),
-              width: 50,
-              height: 50,
-              fit: BoxFit.cover,
-            ).image,
-          );
-        } else {
-          return Icon(
-            Icons.account_circle_outlined,
-            size: 30,
-            color: _darkMode ? Colors.white : Colors.black,
-          );
-        }
-      },
-    );
+    snapshot = (await db.once()).snapshot as DataSnapshot;
+    setState(() {
+    });
   }
 
   final ScrollController _scrollController = ScrollController();
   bool _loading = false;
   DataSnapshot? _lastFetchedItem;
-  List<DataSnapshot> _items = [];
+  final List<dynamic> _items = [];
 
   void _scrollListener() {
     if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
@@ -105,7 +80,7 @@ class _ApplicationState extends State<Application> {
       _loading = true;
     });
 
-    Query query = dbp.orderByKey().limitToFirst(10);
+    Query query = dbp.orderByKey();
     if (_lastFetchedItem != null) {
       query = query.startAfter(_lastFetchedItem!.key);
     }
@@ -113,14 +88,103 @@ class _ApplicationState extends State<Application> {
     DataSnapshot snapshot = await query.get();
     List<DataSnapshot> fetchedItems = snapshot.children.toList();
 
-    setState(() {
-      _items.addAll(fetchedItems);
-      if (fetchedItems.isNotEmpty) {
+    if (fetchedItems.isNotEmpty) {
+      setState(() {
         _lastFetchedItem = fetchedItems.last;
-      }
+        for (int i = 0; i < fetchedItems.length; i++) {
+          if (!_items.contains(fetchedItems[i])) {
+            _items.insert(0,fetchedItems[i]);
+          }
+        }
+      });
+    }
+
+    setState(() {
       _loading = false;
     });
   }
+  Widget _buildDisplayName(String id, double size, bool darkMode) {
+    return StreamBuilder(
+      stream: FirebaseDatabase.instance.ref().child("users").child(id).child('displayName').onValue,
+      builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
+        if (snapshot.hasError) {
+          return const Text("error");
+        } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
+          return Text(
+            snapshot.data!.snapshot.value.toString(),
+            style: TextStyle(
+              fontSize: size,
+              color: darkMode ? Colors.white : Colors.black,
+            ),
+          );
+        } else {
+          return const Text("username");
+        }
+      },
+    );
+  }
+  Widget _buildIcon(String id) {
+    return StreamBuilder(
+      stream: FirebaseDatabase.instance.ref().child("users").child(id).child('photoUrl').onValue,
+      builder: (BuildContext context, AsyncSnapshot snapshot) {
+         if (snapshot.hasError) {
+          return Icon(
+            Icons.error_outline,
+            size: 30,
+            color: _darkMode ? Colors.white : Colors.black,
+          );
+        } else if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          return ClipOval(
+            child: CachedNetworkImage(
+              placeholder: (context, url) => const CupertinoActivityIndicator(),
+              imageUrl: snapshot.data!.snapshot.value.toString(),
+              width: 50,
+              height: 50,
+              fit: BoxFit.cover,
+              fadeInDuration: const Duration(milliseconds: 20),
+            ),
+          );
+
+        } else {
+          return Icon(
+            Icons.account_circle_outlined,
+            size: 30,
+            color: _darkMode ? Colors.white : Colors.black,
+          );
+        }
+      },
+    );
+  }
+  Widget _buildProfile() {
+    return StreamBuilder(
+      stream: FirebaseDatabase.instance.ref().child('users').child(user!.uid).child('photoUrl').onValue,
+      builder: (BuildContext context, AsyncSnapshot snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        } else if (snapshot.hasError) {
+          return Icon(
+            Icons.error_outline,
+            size: 150,
+            color: _darkMode ? Colors.white : Colors.black,
+          );
+        } else if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          return CircleAvatar(
+            radius: 150,
+            backgroundImage: NetworkImage(
+              snapshot.data!.snapshot.value.toString(),
+            ),
+          );
+        } else {
+          return Icon(
+            Icons.account_circle_outlined,
+            size: 150,
+            color: _darkMode ? Colors.white : Colors.black,
+          );
+        }
+      },
+    );
+  }
+  final TextEditingController _comment = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -134,17 +198,19 @@ class _ApplicationState extends State<Application> {
             Container(
               alignment: Alignment.center,
               margin: const EdgeInsets.all(30),
-              child: _isComplete
-                  ? CircleAvatar(
-                backgroundImage: snapshot.child("photoUrl").value !=
-                    null
-                    ? NetworkImage(
-                    snapshot.child("photoUrl").value.toString())
-                    : const AssetImage("assets/profile.png") as ImageProvider<Object>,
-                radius: 50,
-              )
-                  : CircleAvatar(
-                    backgroundImage: Image.asset("assets/g0R5.gif").image,
+              child: Builder(
+                builder: (BuildContext context) {
+                  return SizedBox(
+                    height: 150,
+                    width: 150,
+                    child:IconButton(
+                      onPressed: () {
+                        Scaffold.of(context).openEndDrawer();
+                      },
+                      icon: _buildProfile(),
+                    ),
+                  );
+                },
               ),
             ),
             Container(
@@ -159,15 +225,10 @@ class _ApplicationState extends State<Application> {
                 ),
               ),
               alignment: Alignment.center,
-              child: Text(
-                _isComplete
-                    ? snapshot.child("displayName").value.toString()
-                    : "username",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontFamily: "opensans",
-                  color: _darkMode ? Colors.white : Colors.black,
-                ),
+              child: Builder(
+                builder: (BuildContext context) {
+                  return _buildDisplayName(user!.uid,20,_darkMode);
+                },
               ),
             ),
             Container(
@@ -249,7 +310,7 @@ class _ApplicationState extends State<Application> {
       appBar: AppBar(
         backgroundColor: _darkMode ? const Color(0xFF303030) : const Color(0xFFE0E0E0),
         automaticallyImplyLeading: false,
-        toolbarHeight: 120, // Set this height
+        toolbarHeight: 120,
         actions: <Widget>[
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -267,45 +328,45 @@ class _ApplicationState extends State<Application> {
                 ),
               ),
               Container(
-                margin:  const EdgeInsets.only(right: 3,left:30),
-                child:Row(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    IconButton(
-                      onPressed: () {},
-                      icon: Icon(Icons.search_rounded,
-                          size: 40, color: _darkMode ? Colors.white : Colors.black),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        showModalBottomSheet(
-                          backgroundColor: _darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
-                          context: context,
-                          builder: (BuildContext context) {
-                            return ImageSelector(darkMode: _darkMode);
-                          },
-                        ).then((_) {
-                          _desc.clear();
-                        });
-                      },
-                      icon: Icon(Icons.add, size: 40, color: _darkMode ? Colors.white : Colors.black),
-                    ),
-                    Builder(
-                      builder: (BuildContext context) {
-                        return SizedBox(
-                          height: 60,
-                          width: 60,
-                          child:IconButton(
-                            onPressed: () {
-                              Scaffold.of(context).openEndDrawer();
+                  margin:  const EdgeInsets.only(right: 3,left:30),
+                  child:Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        onPressed: () {},
+                        icon: Icon(Icons.search_rounded,
+                            size: 40, color: _darkMode ? Colors.white : Colors.black),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          showModalBottomSheet(
+                            backgroundColor: _darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
+                            context: context,
+                            builder: (BuildContext context) {
+                              return ImageSelector(darkMode: _darkMode);
                             },
-                            icon: _buildIcon(),
-                        ),
-                        );
-                      },
-                    ),
-                  ],
-                )
+                          ).then((_) {
+                            _desc.clear();
+                          });
+                        },
+                        icon: Icon(Icons.add, size: 40, color: _darkMode ? Colors.white : Colors.black),
+                      ),
+                      Builder(
+                        builder: (BuildContext context) {
+                          return SizedBox(
+                            height: 60,
+                            width: 60,
+                            child:IconButton(
+                              onPressed: () {
+                                Scaffold.of(context).openEndDrawer();
+                              },
+                              icon: _buildIcon(user!.uid),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  )
               ),
             ],
           ),
@@ -315,129 +376,284 @@ class _ApplicationState extends State<Application> {
         children: [
           Expanded(
             child: ListView.builder(
-              physics: ClampingScrollPhysics(),
               controller: _scrollController,
               itemCount: _items.length + 1,
               itemBuilder: (context, index) {
                 if (index == _items.length) {
                   return _loading ? Center(child: CircularProgressIndicator()) : Container();
                 }
-                DataSnapshot item = _items[index];
+                item = _items[index];
                 String photoUrl = item.child("photoUrl").value.toString();
-                String photopic = item.child("profilePic").value.toString();
-                String ownerName = item.child("displayName").value.toString();
+                String ownerId = item.child("ownerId").value.toString();
+                int? nbReports;
+                var value = item.child("nbReports").value;
+                if (value != null) {
+                  String valueStr = value.toString();
+
+                  if (valueStr.isNotEmpty ) {
+                    try {
+                      nbReports = int.parse(valueStr);
+                      print('Entier récupéré: $nbReports');
+                    } catch (e) {
+                      print('Erreur lors de la conversion de la valeur en entier: $e');
+                      nbReports = 0;
+                    }
+                  } else {
+                    print('La chaîne n\'est pas un nombre valide');
+                    nbReports = 0;
+                  }
+                } else {
+                  print('Aucune valeur trouvée pour nbReports');
+                  nbReports = 0;
+                }
+
                 final screenWidth = MediaQuery.of(context).size.width;
-                    return Container(
-                      margin: EdgeInsets.symmetric(vertical: 2),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                String postId = item.key!;
+                List<dynamic> likes = snapshot.child(user!.uid).child('liked').value != null
+                    ? List<dynamic>.from(snapshot.child(user!.uid).child('liked').value as Iterable)
+                    : [];
+                List<dynamic> reports = snapshot.child(user!.uid).child('reports').value != null
+                    ? List<dynamic>.from(snapshot.child(user!.uid).child('reports').value as Iterable)
+                    : [];
+                return Card(
+                  elevation: 10,
+                  key: ValueKey(item.key),
+                  color: _darkMode ? Color(0x4C2D37) : Color(0xFFE0E1E0),
+                  margin: EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Builder(
+                            builder: (BuildContext context) {
+                              return SizedBox(
+                                height: 60,
+                                width: 60,
+                                child:IconButton(
+                                  onPressed: () {
+                                    Scaffold.of(context).openEndDrawer();
+                                  },
+                                  icon: _buildIcon(ownerId),
+                                ),
+                              );
+                            },
+                          ),
+                          Container(
+                            margin: EdgeInsets.only(left: 2, right: 10),
+                            child: Builder(
+                              builder: (BuildContext context) {
+                                return _buildDisplayName(ownerId, 15,_darkMode);
+                              },
+                            ),
+
+                          ),
+                        ],
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(left: 10,right: 10),
+                        child: Text(
+                          item.child("description").value.toString(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: _darkMode ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ),
+                      CachedNetworkImage(
+                        placeholder: (context, url) => const CupertinoActivityIndicator(),
+                        imageUrl: photoUrl,
+                        width: screenWidth,
+                        fadeInDuration: const Duration(milliseconds: 20),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           Row(
                             children: [
-                              Container(
-                                margin: EdgeInsets.only(left: 20),
-                                child: CircleAvatar(
-                                  backgroundImage:_isComplete? NetworkImage(photopic):AssetImage("assets/profile.png") as ImageProvider<Object>,
+                              GestureDetector(
+                                onTap: () async {
+                                  if (likes.contains(postId)) {
+                                    likes.remove(postId);
+                                  } else {
+                                    likes.add(postId);
+                                  }
+                                  await db.child(user!.uid).child('liked').set(likes);
+                                  setState(() {});
+                                  fetchData();
+                                },
+                                child: SizedBox(
+                                  height: 60,
+                                  width: 60,
+                                  child: Icon(
+                                    likes.contains(item.key) ? Icons.favorite : Icons.favorite_border,
+                                    size: 32,
+                                    color: likes.contains(item.key) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                                  ),
                                 ),
                               ),
-                              Container(
-                                margin: EdgeInsets.only(top: 0, left: 10, right: 10),
-                                child: Text(
-                                  ownerName,
-                                  style: TextStyle(
-                                    color: _darkMode ? Colors.white : Colors.black,
-                                  ),
+                              Text(
+                                "Like",
+                                style: TextStyle(
+                                  color: _darkMode ? Colors.white : Colors.black,
+                                  fontSize: 20,
                                 ),
                               ),
                             ],
                           ),
-                          Container(
-                            margin: EdgeInsets.only(left: 10, top: 5, bottom: 5, right: 10),
-                            child: Text(
-                              item.child("description").value.toString(),
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: _darkMode ? Colors.white : Colors.black,
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  showModalBottomSheet(
+                                    backgroundColor: _darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return StatefulBuilder(
+                                        builder: (BuildContext context, StateSetter setModalState) {
+                                          return Padding(
+                                            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(16.0),
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: <Widget>[
+                                                  Text(
+                                                    'Comments',
+                                                    style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold,color: !_darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),),
+                                                  ),
+                                                  Expanded(
+                                                    child: FutureBuilder<DataSnapshot>(
+                                                      future: dbp.child(postId).child('comments').once().then((event) => event.snapshot),
+                                                      builder: (context, snapshot) {
+                                                        if (snapshot.connectionState == ConnectionState.waiting) {
+                                                          return const Center(child: CircularProgressIndicator());
+                                                        } else if (snapshot.hasError) {
+                                                          return const Center(child: Text('Error loading comments'));
+                                                        } else if (!snapshot.hasData || snapshot.data!.children.isEmpty) {
+                                                          return  Center(child: Text('No comments yet',style: TextStyle(color: !_darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA)),));
+                                                        } else {
+                                                          List<DataSnapshot> commentSnapshots = snapshot.data!.children.toList();
+                                                          return ListView.builder(
+                                                            shrinkWrap: true,
+                                                            itemCount: commentSnapshots.length,
+                                                            itemBuilder: (context, index) {
+                                                              var commentData = commentSnapshots[index].value as Map<dynamic, dynamic>;
+                                                              return ListTile(
+                                                                title: Text(
+                                                                  commentData['comment'] ?? '',
+                                                                  style: TextStyle(
+                                                                      color: _darkMode ? Colors.white : Colors.black,
+                                                                      fontSize: 16),
+                                                                ),
+                                                              );
+                                                            },
+                                                          );
+                                                        }
+                                                      },
+                                                    ),
+                                                  ),
+                                                  TextField(
+                                                    controller: _comment,
+                                                    style: TextStyle(
+                                                        color: _darkMode ? Colors.white : Colors.black),
+                                                    decoration: InputDecoration(
+                                                      hintText: 'Add a comment',
+                                                      hintStyle: TextStyle(
+                                                          color: _darkMode ? Colors.white : Colors.black),
+                                                      suffixIcon: IconButton(
+                                                        icon: Icon(Icons.send,
+                                                            color: _darkMode ? Colors.white : Colors.black),
+                                                        onPressed: () async {
+                                                          if (_comment.text.isNotEmpty) {
+                                                            await dbp.child(postId).child('comments').push().set({
+                                                              'comment': _comment.text,
+                                                            });
+                                                            setModalState(() {
+                                                              _comment.clear();
+                                                            });
+                                                          }
+                                                        },
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                                child: SizedBox(
+                                  height: 60,
+                                  width: 60,
+                                  child: Icon(
+                                    Icons.mode_comment_outlined,
+                                    size: 32,
+                                    color: _darkMode ? Colors.white : Colors.black,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          Container(
-                            margin: EdgeInsets.only(top: 20),
-                            width: screenWidth,
-                            color: Colors.amber,
-                            child: Image.network(photoUrl, fit: BoxFit.cover),
+                              Text(
+                                "Comment",
+                                style: TextStyle(
+                                  color: _darkMode ? Colors.white : Colors.black,
+                                  fontSize: 20,
+                                ),
+                              ),
+                            ],
                           ),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    height: 60,
-                                    width: 60,
-                                    child: Icon(
-                                      Icons.favorite_border,
-                                      size: 32,
-                                      color: _darkMode ? Colors.white : Colors.black,
+                              SizedBox(
+                                height: 60,
+                                width: 60,
+                                child: GestureDetector(
+                                    onTap: () async {
+                                      if (reports.contains(postId)) {
+                                          reports.remove(postId);
+                                          if(nbReports!>0){
+                                          nbReports=nbReports!-1;}
+                                      } else {
+                                          reports.add(postId);
+                                          nbReports=nbReports!+1;
+                                      }
+                                      await db.child(user!.uid).child('reports').set(reports);
+                                      await dbp.child(postId).child("nbReports").set(nbReports);
+                                      setState(() {});
+                                      fetchData();
+                                      },
+                                    child: SizedBox(
+                                      height: 60,
+                                      width: 60,
+                                      child: Icon(
+                                        reports.contains(item.key) ? Icons.flag : Icons
+                                            .outlined_flag,
+                                        size: 32,
+                                       color: reports.contains(item.key) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    "Like",
-                                    style: TextStyle(
-                                      color: _darkMode ? Colors.white : Colors.black,
-                                      fontSize: 20,
+                                ),
                                     ),
-                                  ),
-                                ],
+                              Text(
+                                "Report",
+                                style: TextStyle(
+                                  color: _darkMode ? Colors.white : Colors.black,
+                                  fontSize: 20,
+                                ),
                               ),
-                              Row(
-                                children: [
-                                  Container(
-                                    height: 60,
-                                    width: 60,
-                                    child: Icon(
-                                      Icons.mode_comment_outlined,
-                                      size: 32,
-                                      color: _darkMode ? Colors.white : Colors.black,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Comment",
-                                    style: TextStyle(
-                                      color: _darkMode ? Colors.white : Colors.black,
-                                      fontSize: 20,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  Container(
-                                    height: 60,
-                                    width: 60,
-                                    child: Icon(
-                                      Icons.share_outlined,
-                                      size: 35,
-                                      color: _darkMode ? Colors.white : Colors.black,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Share",
-                                    style: TextStyle(
-                                      color: _darkMode ? Colors.white : Colors.black,
-                                      fontSize: 20,
-                                    ),
-                                  ),
-                                  Container(
-                                    margin: EdgeInsets.only(right: 15),
-                                  ),
-                                ],
+                              Container(
+                                margin: EdgeInsets.only(right: 15),
                               ),
                             ],
                           ),
                         ],
                       ),
-                    );
+                    ],
+                  ),
+                );
               },
             ),
           ),
@@ -467,12 +683,13 @@ class _ImageSelectorState extends State<ImageSelector> {
   void initState() {
     super.initState();
     fetchData().then((_) {
-      setState(() {
-      });
+      setState(() {});
     });
   }
+
   late DataSnapshot snapshot;
   DatabaseReference db = FirebaseDatabase.instance.ref("users");
+
   Future<void> fetchData() async {
     db.child(user!.uid).onValue.listen((DatabaseEvent event) {
       setState(() {
@@ -482,26 +699,48 @@ class _ImageSelectorState extends State<ImageSelector> {
     snapshot = (await db.child(user!.uid).once()) as DataSnapshot;
     setState(() {});
   }
+
   Future<void> uploadImage() async {
     try {
       var file = File(imageGallery!.path);
+      var result = await FlutterImageCompress.compressWithFile(
+        file.absolute.path,
+        quality: 50,
+      );
 
-      imageName = basename(imageGallery!.path);
+      if (result == null) {
+        print('Error compressing image');
+        return;
+      }
+
+      var compressedFile = File(imageGallery!.path)..writeAsBytesSync(result);
+
+      imageName = basename(compressedFile.path);
       var storageReference = FirebaseStorage.instance.ref().child(imageName);
 
-      await storageReference.putFile(file);
+      await storageReference.putFile(compressedFile);
       String imageUrl = await storageReference.getDownloadURL();
       setState(() {
         url = imageUrl;
       });
+
       DatabaseReference ref = FirebaseDatabase.instance.ref("Postes");
-      await ref.push().set({
+      var newPostRef = ref.push();
+      await newPostRef.set({
         "ownerId": user!.uid,
         "description": _desc.text,
         "photoUrl": url,
-        "profilePic": snapshot.child("photoUrl").value.toString(),
-        "displayName":snapshot.child("displayName").value.toString()
       });
+
+      Fluttertoast.showToast(
+        msg: "post uploaded successfully",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+
+      setState(() {});
     } catch (e) {
       print('Error uploading image: $e');
     }
@@ -533,12 +772,6 @@ class _ImageSelectorState extends State<ImageSelector> {
           child: IconButton(
             onPressed: () {
               uploadImage();
-              Fluttertoast.showToast(
-                msg: "post uploaded successfully",
-                toastLength: Toast.LENGTH_SHORT,
-                gravity: ToastGravity.BOTTOM,
-                backgroundColor: Colors.red,
-                textColor: Colors.white,);
             },
             icon: Icon(
               Icons.send,
@@ -582,8 +815,8 @@ class _ImageSelectorState extends State<ImageSelector> {
         ),
         Container(
           margin: const EdgeInsets.only(top: 15, right: 10, left: 20),
-          child: Text( _isloaded? "image to post":
-            "Add Post's Poster:",
+          child: Text(
+            _isloaded ? "image to post" : "Add Post's Poster:",
             style: TextStyle(
               color: widget.darkMode ? Colors.white : Colors.black,
               fontFamily: "OpenSans",
@@ -602,14 +835,14 @@ class _ImageSelectorState extends State<ImageSelector> {
             fit: BoxFit.cover,
           )
               : IconButton(
-                  onPressed: () {
-                    getImage();
-            },
+                onPressed: () {
+                  getImage();
+                },
                 icon: Icon(
                   Icons.add_photo_alternate_rounded,
                   color: widget.darkMode ? Colors.white : Colors.black,
                   size: 70,
-                ),
+            ),
           ),
         ),
       ],

@@ -3,6 +3,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'SignUp.dart';
+import 'monitoring.dart';
 import 'myScreen.dart';
 import 'wrapper.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -15,6 +16,7 @@ void main() async{
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  PostMonitorService();
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
     home: Wrapper(),

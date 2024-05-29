@@ -46,9 +46,13 @@ dependencies:
   intl: ^0.19.0
   flutter_launcher_icons: ^0.13.1
   flutter_image_compress: ^2.3.0
-
+  cached_network_image: ^3.2.3
+  infinite_scroll_pagination: ^3.0.0
+  shared_preferences: ^2.0.8
 
   path: any
+  loading_gifs: ^0.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
