@@ -316,7 +316,7 @@ class _ApplicationState extends State<Application> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
               Container(
-                margin: EdgeInsets.only(left:5),
+                margin: EdgeInsets.only(right:50),
                 padding: EdgeInsets.only(left:5),
                 child: Text(
                   "Bons Plans",
@@ -332,11 +332,6 @@ class _ApplicationState extends State<Application> {
                   child:Row(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      IconButton(
-                        onPressed: () {},
-                        icon: Icon(Icons.search_rounded,
-                            size: 40, color: _darkMode ? Colors.white : Colors.black),
-                      ),
                       IconButton(
                         onPressed: () {
                           showModalBottomSheet(
@@ -386,27 +381,7 @@ class _ApplicationState extends State<Application> {
                 String photoUrl = item.child("photoUrl").value.toString();
                 String ownerId = item.child("ownerId").value.toString();
                 int? nbReports;
-                var value = item.child("nbReports").value;
-                if (value != null) {
-                  String valueStr = value.toString();
-
-                  if (valueStr.isNotEmpty ) {
-                    try {
-                      nbReports = int.parse(valueStr);
-                      print('Entier récupéré: $nbReports');
-                    } catch (e) {
-                      print('Erreur lors de la conversion de la valeur en entier: $e');
-                      nbReports = 0;
-                    }
-                  } else {
-                    print('La chaîne n\'est pas un nombre valide');
-                    nbReports = 0;
-                  }
-                } else {
-                  print('Aucune valeur trouvée pour nbReports');
-                  nbReports = 0;
-                }
-
+                int? nbLike;
                 final screenWidth = MediaQuery.of(context).size.width;
                 String postId = item.key!;
                 List<dynamic> likes = snapshot.child(user!.uid).child('liked').value != null
@@ -418,38 +393,51 @@ class _ApplicationState extends State<Application> {
                 return Card(
                   elevation: 10,
                   key: ValueKey(item.key),
-                  color: _darkMode ? Color(0x4C2D37) : Color(0xFFE0E1E0),
-                  margin: EdgeInsets.symmetric(vertical: 10),
+                  color: _darkMode ? const Color(0x004c2d37) : const Color(0xFFE0E1E0),
+                  margin: const EdgeInsets.symmetric(vertical: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Builder(
+                    Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: ListTile(
+                          leading: Builder(
                             builder: (BuildContext context) {
                               return SizedBox(
                                 height: 60,
                                 width: 60,
-                                child:IconButton(
-                                  onPressed: () {
+                                child:Builder(
+                                  builder: (BuildContext context) {
+                                    return _buildIcon(ownerId);
                                   },
-                                  icon: _buildIcon(ownerId),
                                 ),
                               );
                             },
                           ),
-                          Container(
-                            margin: EdgeInsets.only(left: 2, right: 10),
-                            child: Builder(
-                              builder: (BuildContext context) {
-                                return _buildDisplayName(ownerId, 15,_darkMode);
-                              },
-                            ),
-
+                          title: Builder(
+                            builder: (BuildContext context) {
+                              return _buildDisplayName(ownerId, 15, _darkMode);
+                            },
                           ),
-                        ],
+                        ),
                       ),
-                      Container(
+                      if (user!.uid == ownerId)
+                        Container(
+                          child: IconButton(
+                            onPressed: () {
+                              FirebaseDatabase.instance.ref().child("Postes").child(postId).remove();
+                            },
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: _darkMode ? Colors.white : Colors.black,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                    Container(
                         margin: const EdgeInsets.only(left: 10,right: 10),
                         child: Text(
                           item.child("description").value.toString(),
@@ -471,40 +459,63 @@ class _ApplicationState extends State<Application> {
                           imageUrl: photoUrl,
                         ),
                       ),
-                      Row(
+                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          Row(
-                            children: [
-                              GestureDetector(
-                                onTap: () async {
-                                  if (likes.contains(postId)) {
-                                    likes.remove(postId);
-                                  } else {
-                                    likes.add(postId);
-                                  }
-                                  await db.child(user!.uid).child('liked').set(likes);
-                                  setState(() {});
-                                  fetchData();
-                                },
-                                child: SizedBox(
-                                  height: 60,
-                                  width: 60,
-                                  child: Icon(
-                                    likes.contains(item.key) ? Icons.favorite : Icons.favorite_border,
-                                    size: 32,
-                                    color: likes.contains(item.key) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                          StreamBuilder(
+                            stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbLike').onValue,
+                            builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                              if (snapshot.hasError) {
+                                return const Text("Error");
+                              } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
+                                nbLike = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
+                              } else {
+                                nbLike = 0;
+                              }
+
+                              return Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () async {
+                                      bool isLiked = likes.contains(postId);
+
+                                      setState(() {
+                                        if (isLiked) {
+                                          likes.remove(postId);
+                                          if (nbLike! > 0) {
+                                            nbLike = nbLike! - 1;
+                                          }
+                                        } else {
+                                          likes.add(postId);
+                                          nbLike = nbLike! + 1;
+                                        }
+                                      });
+
+                                      await db.child(user!.uid).child('liked').set(likes);
+                                      await dbp.child(postId).child("nbLike").set(nbLike);
+
+                                      fetchData();
+                                    },
+                                    child: SizedBox(
+                                      height: 60,
+                                      width: 60,
+                                      child: Icon(
+                                        likes.contains(postId) ? Icons.favorite : Icons.favorite_border,
+                                        size: 32,
+                                        color: likes.contains(postId) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              Text(
-                                "Like",
-                                style: TextStyle(
-                                  color: _darkMode ? Colors.white : Colors.black,
-                                  fontSize: 20,
-                                ),
-                              ),
-                            ],
+                                  Text(
+                                    nbLike.toString(),
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: _darkMode ? Colors.white : Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                           Row(
                             children: [
@@ -641,50 +652,64 @@ class _ApplicationState extends State<Application> {
                               ),
                             ],
                           ),
-                          Row(
-                            children: [
-                              SizedBox(
-                                height: 60,
-                                width: 60,
-                                child: GestureDetector(
+                          StreamBuilder(
+                            stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbReports').onValue,
+                            builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                              if (snapshot.hasError) {
+                                return const Text("Error");
+                              } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
+                                nbReports = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
+                              } else {
+                                nbReports = 0;
+                              }
+
+                              return Row(
+                                children: [
+                                  GestureDetector(
                                     onTap: () async {
-                                      if (reports.contains(postId)) {
+                                      bool isReported = reports.contains(postId);
+
+                                      setState(() {
+                                        if (isReported) {
                                           reports.remove(postId);
-                                          if(nbReports!>0){
-                                          nbReports=nbReports!-1;}
-                                      } else {
+                                          if (nbReports! > 0) {
+                                            nbReports = nbReports! - 1;
+                                          }
+                                        } else {
                                           reports.add(postId);
-                                          nbReports=nbReports!+1;
-                                      }
+                                          nbReports = nbReports! + 1;
+                                        }
+                                      });
+
                                       await db.child(user!.uid).child('reports').set(reports);
                                       await dbp.child(postId).child("nbReports").set(nbReports);
-                                      setState(() {});
+
                                       fetchData();
-                                      },
+                                    },
                                     child: SizedBox(
                                       height: 60,
                                       width: 60,
                                       child: Icon(
-                                        reports.contains(item.key) ? Icons.flag : Icons
-                                            .outlined_flag,
+                                        reports.contains(postId) ? Icons.flag : Icons.outlined_flag,
                                         size: 32,
-                                       color: reports.contains(item.key) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                                        color: reports.contains(postId) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
                                       ),
                                     ),
-                                ),
+                                  ),
+                                   Text(
+                                      "Report",
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        color: _darkMode ? Colors.white : Colors.black,
+                                      ),
                                     ),
-                              Text(
-                                "Report",
-                                style: TextStyle(
-                                  color: _darkMode ? Colors.white : Colors.black,
-                                  fontSize: 20,
-                                ),
-                              ),
-                              Container(
-                                margin: EdgeInsets.only(right: 15),
-                              ),
-                            ],
-                          ),
+                                  Container(
+                                    margin: EdgeInsets.only(right: 20),
+                                  )
+                                ],
+                              );
+                            },
+                          )
                         ],
                       ),
                     ],
