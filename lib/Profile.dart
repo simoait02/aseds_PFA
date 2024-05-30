@@ -96,13 +96,12 @@ class _ProfileState extends State<Profile> {
                   user!.uid}");
           if (ownerId == user!.uid.toString()) {
             if (!_items.contains(fetchedItems[i])) {
-              _items.add(fetchedItems[i]);
+              _items.insert(0,fetchedItems[i]);
             }
           }
         }
       });
     }
-
     setState(() {
       _loading = false;
     });
@@ -327,7 +326,6 @@ class _ProfileState extends State<Profile> {
                             width: 60,
                             child: IconButton(
                               onPressed: () {
-                                Scaffold.of(context).openEndDrawer();
                               },
                               icon: _buildIcon(ownerId),
                             ),
@@ -338,8 +336,7 @@ class _ProfileState extends State<Profile> {
                         margin: EdgeInsets.only(left: 2, right: 10),
                         child: Builder(
                           builder: (BuildContext context) {
-                            return _buildDisplayName(
-                                ownerId, 15, widget.darkMode);
+                            return _buildDisplayName(ownerId, 15, widget.darkMode);
                           },
                         ),
                       ),
@@ -355,12 +352,17 @@ class _ProfileState extends State<Profile> {
                       ),
                     ),
                   ),
-                  CachedNetworkImage(
-                    placeholder: (context,
-                        url) => const CupertinoActivityIndicator(),
-                    imageUrl: photoUrl,
+                  Container(
                     width: screenWidth,
-                    fadeInDuration: const Duration(milliseconds: 20),
+                    height: 450,
+                    color: Colors.black,
+                    child: CachedNetworkImage(
+                      placeholder: (context, url) => const CupertinoActivityIndicator(),
+                      width: screenWidth,
+                      height: 450,
+                      fit: BoxFit.contain,
+                      imageUrl: photoUrl,
+                    ),
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -428,47 +430,60 @@ class _ProfileState extends State<Profile> {
                                                 ),
                                               ),
                                               Expanded(
-                                                child: FutureBuilder<
-                                                    DataSnapshot>(
-                                                  future: dbp.child(postId).child('comments').once().then((event) =>
-                                                  event.snapshot),
+                                                child: FutureBuilder<DataSnapshot>(
+                                                  future: dbp.child(postId).child('comments').once().then((event) => event.snapshot),
                                                   builder: (context, snapshot) {
-                                                    if (snapshot
-                                                        .connectionState ==
-                                                        ConnectionState
-                                                            .waiting) {
-                                                      return const Center(
-                                                          child: CircularProgressIndicator());
-                                                    } else if (snapshot
-                                                        .hasError) {
-                                                      return const Center(
-                                                          child: Text(
-                                                              'Error loading comments'));
-                                                    } else if (!snapshot
-                                                        .hasData ||
-                                                        snapshot.data!.children
-                                                            .isEmpty) {
-                                                      return Center(child: Text(
-                                                        'No comments yet',
-                                                        style: TextStyle(
-                                                            color: !widget.darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA)),));
+                                                    if (snapshot.connectionState == ConnectionState.waiting) {
+                                                      return const Center(child: CircularProgressIndicator());
+                                                    } else if (snapshot.hasError) {
+                                                      return const Center(child: Text('Error loading comments'));
+                                                    } else if (!snapshot.hasData || snapshot.data!.children.isEmpty) {
+                                                      return Center(
+                                                        child: Text(
+                                                          'No comments yet',
+                                                          style: TextStyle(
+                                                            color: !widget._darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
+                                                          ),
+                                                        ),
+                                                      );
                                                     } else {
-                                                      List<
-                                                          DataSnapshot> commentSnapshots = snapshot.data!.children.toList();
+                                                      List<DataSnapshot> commentSnapshots = snapshot.data!.children.toList();
                                                       return ListView.builder(
                                                         shrinkWrap: true,
                                                         itemCount: commentSnapshots.length,
                                                         itemBuilder: (context, index) {
                                                           var commentData = commentSnapshots[index].value as Map<dynamic, dynamic>;
-                                                          return ListTile(
-                                                            title: Text(
-                                                              commentData['comment'] ?? '',
-                                                              style: TextStyle(
-                                                                color: widget.darkMode ? Colors.white : Colors.black,
-                                                                fontSize: 16,
+                                                          return Card(
+                                                            color: widget._darkMode ? const Color(0x004c2d37) : const Color(0xFFE0E1E0),
+                                                            child: ListTile(
+                                                              leading: Container(
+                                                                height: 60,
+                                                                width: 60,
+                                                                decoration: const BoxDecoration(
+                                                                  shape: BoxShape.circle,
+                                                                ),
+                                                                child: Center(
+                                                                  child: IconButton(
+                                                                    onPressed: () {},
+                                                                    icon: _buildIcon(commentData['ownerId']),
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              title: Builder(
+                                                                builder: (BuildContext context) {
+                                                                  return _buildDisplayName(commentData['ownerId'],10, widget._darkMode);
+                                                                },
+                                                              ),
+                                                              subtitle: Text(
+                                                                commentData['comment'] ?? '',
+                                                                style: TextStyle(
+                                                                  color: widget._darkMode ? Colors.white : Colors.black,
+                                                                  fontSize: 16,
+                                                                ),
                                                               ),
                                                             ),
                                                           );
+
                                                         },
                                                       );
                                                     }

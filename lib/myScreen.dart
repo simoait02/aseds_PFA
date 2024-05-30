@@ -432,7 +432,6 @@ class _ApplicationState extends State<Application> {
                                 width: 60,
                                 child:IconButton(
                                   onPressed: () {
-                                    Scaffold.of(context).openEndDrawer();
                                   },
                                   icon: _buildIcon(ownerId),
                                 ),
@@ -460,11 +459,17 @@ class _ApplicationState extends State<Application> {
                           ),
                         ),
                       ),
-                      CachedNetworkImage(
-                        placeholder: (context, url) => const CupertinoActivityIndicator(),
-                        imageUrl: photoUrl,
+                      Container(
                         width: screenWidth,
-                        fadeInDuration: const Duration(milliseconds: 20),
+                        height: 450,
+                        color: Colors.black,
+                        child: CachedNetworkImage(
+                          placeholder: (context, url) => const CupertinoActivityIndicator(),
+                          width: screenWidth,
+                          height: 450,
+                          fit: BoxFit.contain,
+                          imageUrl: photoUrl,
+                        ),
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -531,7 +536,14 @@ class _ApplicationState extends State<Application> {
                                                         } else if (snapshot.hasError) {
                                                           return const Center(child: Text('Error loading comments'));
                                                         } else if (!snapshot.hasData || snapshot.data!.children.isEmpty) {
-                                                          return  Center(child: Text('No comments yet',style: TextStyle(color: !_darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA)),));
+                                                          return Center(
+                                                            child: Text(
+                                                              'No comments yet',
+                                                              style: TextStyle(
+                                                                color: !_darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
+                                                              ),
+                                                            ),
+                                                          );
                                                         } else {
                                                           List<DataSnapshot> commentSnapshots = snapshot.data!.children.toList();
                                                           return ListView.builder(
@@ -539,14 +551,37 @@ class _ApplicationState extends State<Application> {
                                                             itemCount: commentSnapshots.length,
                                                             itemBuilder: (context, index) {
                                                               var commentData = commentSnapshots[index].value as Map<dynamic, dynamic>;
-                                                              return ListTile(
-                                                                title: Text(
-                                                                  commentData['comment'] ?? '',
-                                                                  style: TextStyle(
+                                                              return Card(
+                                                                color: _darkMode ? const Color(0x004c2d37) : const Color(0xFFE0E1E0),
+                                                                child: ListTile(
+                                                                  leading: Container(
+                                                                    height: 60,
+                                                                    width: 60,
+                                                                    decoration: const BoxDecoration(
+                                                                      shape: BoxShape.circle,
+                                                                    ),
+                                                                    child: Center(
+                                                                      child: IconButton(
+                                                                        onPressed: () {},
+                                                                        icon: _buildIcon(commentData['ownerId']),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                    title: Builder(
+                                                                    builder: (BuildContext context) {
+                                                                      return _buildDisplayName(commentData['ownerId'],10, _darkMode);
+                                                                    },
+                                                                  ),
+                                                                  subtitle: Text(
+                                                                    commentData['comment'] ?? '',
+                                                                    style: TextStyle(
                                                                       color: _darkMode ? Colors.white : Colors.black,
-                                                                      fontSize: 16),
+                                                                      fontSize: 16,
+                                                                    ),
+                                                                  ),
                                                                 ),
                                                               );
+
                                                             },
                                                           );
                                                         }
@@ -568,6 +603,7 @@ class _ApplicationState extends State<Application> {
                                                           if (_comment.text.isNotEmpty) {
                                                             await dbp.child(postId).child('comments').push().set({
                                                               'comment': _comment.text,
+                                                              'ownerId':user!.uid,
                                                             });
                                                             setModalState(() {
                                                               _comment.clear();
@@ -736,7 +772,7 @@ class _ImageSelectorState extends State<ImageSelector> {
         msg: "post uploaded successfully",
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
-        backgroundColor: Colors.red,
+        backgroundColor: Colors.green,
         textColor: Colors.white,
       );
 
