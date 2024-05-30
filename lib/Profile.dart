@@ -282,24 +282,7 @@ class _ProfileState extends State<Profile> {
             String photoUrl = item.child("photoUrl").value.toString();
             String ownerId = item.child("ownerId").value.toString();
             int? nbReports;
-            var value = item
-                .child("nbReports")
-                .value;
-            if (value != null) {
-              String valueStr = value.toString();
-              if (valueStr.isNotEmpty) {
-                try {
-                  nbReports = int.parse(valueStr);
-                } catch (e) {
-                  nbReports = 0;
-                }
-              } else {
-                nbReports = 0;
-              }
-            } else {
-              nbReports = 0;
-            }
-
+            int? nbLike;
             final screenWidth = MediaQuery.of(context).size.width;
             String postId = item.key!;
             List<dynamic> likes = snapshot!.child(user!.uid).child('liked').value != null
@@ -367,55 +350,72 @@ class _ProfileState extends State<Profile> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () async {
-                              if (likes.contains(postId)) {
-                                likes.remove(postId);
-                              } else {
-                                likes.add(postId);
-                              }
-                              await db.child(user!.uid).child('liked').set(
-                                  likes);
-                              setState(() {});
-                              fetchData();
-                            },
-                            child: SizedBox(
-                              height: 60,
-                              width: 60,
-                              child: Icon(
-                                likes.contains(item.key) ? Icons.favorite : Icons.favorite_border,
-                                size: 32,
-                                color: likes.contains(item.key) ? Colors.red : (widget.darkMode ? Colors.white : Colors.black),
+                      StreamBuilder(
+                        stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbLike').onValue,
+                        builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                          if (snapshot.hasError) {
+                            return const Text("Error");
+                          } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
+                            nbLike = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
+                          } else {
+                            nbLike = 0;
+                          }
+                          return Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () async {
+                                  bool isLiked = likes.contains(postId);
+
+                                  setState(() {
+                                    if (isLiked) {
+                                      likes.remove(postId);
+                                      if (nbLike! > 0) {
+                                        nbLike = nbLike! - 1;
+                                      }
+                                    } else {
+                                      likes.add(postId);
+                                      nbLike = nbLike! + 1;
+                                    }
+                                  });
+
+                                  await db.child(user!.uid).child('liked').set(likes);
+                                  await dbp.child(postId).child("nbLike").set(nbLike);
+
+                                  fetchData();
+                                },
+                                child: SizedBox(
+                                  height: 60,
+                                  width: 60,
+                                  child: Icon(
+                                    likes.contains(postId) ? Icons.favorite : Icons.favorite_border,
+                                    size: 32,
+                                    color: likes.contains(postId) ? Colors.red : (widget._darkMode ? Colors.white : Colors.black),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          Text(
-                            "Like",
-                            style: TextStyle(
-                              color: widget.darkMode ? Colors.white : Colors
-                                  .black,
-                              fontSize: 20,
-                            ),
-                          ),
-                        ],
+                              Text(
+                                nbLike.toString(),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: widget._darkMode ? Colors.white : Colors.black,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                       Row(
                         children: [
                           GestureDetector(
                             onTap: () {
                               showModalBottomSheet(
-                                backgroundColor: widget.darkMode ? const Color(
-                                    0xFF212121) : const Color(0xFFFAFAFA),
+                                backgroundColor: widget._darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
                                 context: context,
                                 builder: (BuildContext context) {
                                   return StatefulBuilder(
-                                    builder: (BuildContext context,
-                                        StateSetter setModalState) {
+                                    builder: (BuildContext context, StateSetter setModalState) {
                                       return Padding(
-                                        padding: EdgeInsets.only(
-                                            bottom: MediaQuery.of(context).viewInsets.bottom),
+                                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                                         child: Container(
                                           padding: const EdgeInsets.all(16.0),
                                           child: Column(
@@ -423,11 +423,7 @@ class _ProfileState extends State<Profile> {
                                             children: <Widget>[
                                               Text(
                                                 'Comments',
-                                                style: TextStyle(
-                                                  fontSize: 24.0,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: !widget.darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),
-                                                ),
+                                                style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold,color: !widget._darkMode ? const Color(0xFF212121) : const Color(0xFFFAFAFA),),
                                               ),
                                               Expanded(
                                                 child: FutureBuilder<DataSnapshot>(
@@ -507,6 +503,7 @@ class _ProfileState extends State<Profile> {
                                                       if (_comment.text.isNotEmpty) {
                                                         await dbp.child(postId).child('comments').push().set({
                                                           'comment': _comment.text,
+                                                          'ownerId':user!.uid,
                                                         });
                                                         setModalState(() {
                                                           _comment.clear();
@@ -545,43 +542,65 @@ class _ProfileState extends State<Profile> {
                           ),
                         ],
                       ),
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () async {
-                              if (reports.contains(postId)) {
-                                reports.remove(postId);
-                                nbReports = nbReports! - 1;
-                              } else {
-                                reports.add(postId);
-                                nbReports = nbReports! + 1;
-                              }
-                              await db.child(user!.uid).child('reports').set(reports);
-                              await dbp.child(postId).update({'nbReports': nbReports});
-                              setState(() {});
-                              fetchData();
-                            },
-                            child: SizedBox(
-                              height: 60,
-                              width: 60,
-                              child: Icon(
-                                reports.contains(item.key) ? Icons.flag : Icons
-                                    .outlined_flag,
-                                size: 32,
-                                color: reports.contains(item.key) ? Colors.red : (widget.darkMode ? Colors.white : Colors.black),
+                      StreamBuilder(
+                        stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbReports').onValue,
+                        builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
+                          if (snapshot.hasError) {
+                            return const Text("Error");
+                          } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
+                            nbReports = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
+                          } else {
+                            nbReports = 0;
+                          }
+
+                          return Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () async {
+                                  bool isReported = reports.contains(postId);
+
+                                  setState(() {
+                                    if (isReported) {
+                                      reports.remove(postId);
+                                      if (nbReports! > 0) {
+                                        nbReports = nbReports! - 1;
+                                      }
+                                    } else {
+                                      reports.add(postId);
+                                      nbReports = nbReports! + 1;
+                                    }
+                                  });
+
+                                  await db.child(user!.uid).child('reports').set(reports);
+                                  await dbp.child(postId).child("nbReports").set(nbReports);
+                                  setState(() {
+                                  });
+                                  fetchData();
+                                },
+                                child: SizedBox(
+                                  height: 60,
+                                  width: 60,
+                                  child: Icon(
+                                    reports.contains(postId) ? Icons.flag : Icons.outlined_flag,
+                                    size: 32,
+                                    color: reports.contains(postId) ? Colors.red : (widget._darkMode ? Colors.white : Colors.black),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          Text(
-                            "Report",
-                            style: TextStyle(
-                              color: widget.darkMode ? Colors.white : Colors
-                                  .black,
-                              fontSize: 20,
-                            ),
-                          ),
-                        ],
-                      ),
+                              Text(
+                                "Report",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: widget._darkMode ? Colors.white : Colors.black,
+                                ),
+                              ),
+                              Container(
+                                margin: EdgeInsets.only(right: 20),
+                              )
+                            ],
+                          );
+                        },
+                      )
                     ],
                   ),
                 ],

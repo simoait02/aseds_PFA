@@ -472,7 +472,6 @@ class _ApplicationState extends State<Application> {
                               } else {
                                 nbLike = 0;
                               }
-
                               return Row(
                                 children: [
                                   GestureDetector(
@@ -683,7 +682,8 @@ class _ApplicationState extends State<Application> {
 
                                       await db.child(user!.uid).child('reports').set(reports);
                                       await dbp.child(postId).child("nbReports").set(nbReports);
-
+                                      setState(() {
+                                      });
                                       fetchData();
                                     },
                                     child: SizedBox(
