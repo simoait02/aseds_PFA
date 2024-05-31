@@ -4,11 +4,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-void main() => runApp(MaterialApp(
-  debugShowCheckedModeBanner: false,
-  home: Profile(false),
-));
-
 class Profile extends StatefulWidget {
   final bool _darkMode;
   const Profile(this._darkMode, {super.key});
@@ -260,9 +255,7 @@ class _ProfileState extends State<Profile> {
                           height: 100,
                           width: 100,
                           child: IconButton(
-                            onPressed: () {
-                              Scaffold.of(context).openEndDrawer();
-                            },
+                            onPressed: () {},
                             icon: _buildProfile(),
                           ),
                         );
@@ -281,16 +274,8 @@ class _ProfileState extends State<Profile> {
             var item = _items[index - 1];
             String photoUrl = item.child("photoUrl").value.toString();
             String ownerId = item.child("ownerId").value.toString();
-            int? nbReports;
-            int? nbLike;
             final screenWidth = MediaQuery.of(context).size.width;
             String postId = item.key!;
-            List<dynamic> likes = snapshot!.child(user!.uid).child('liked').value != null
-                ? List<dynamic>.from(snapshot!.child(user!.uid).child('liked').value as Iterable)
-                : [];
-            List<dynamic> reports = snapshot!.child(user!.uid).child('reports').value != null
-                ? List<dynamic>.from(snapshot!.child(user!.uid).child('reports').value as Iterable)
-                : [];
 
             return Card(
               elevation: 10,
@@ -301,28 +286,66 @@ class _ProfileState extends State<Profile> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Builder(
-                        builder: (BuildContext context) {
-                          return SizedBox(
-                            height: 60,
-                            width: 60,
-                            child: IconButton(
-                              onPressed: () {
-                              },
-                              icon: _buildIcon(ownerId),
-                            ),
-                          );
-                        },
-                      ),
-                      Container(
-                        margin: EdgeInsets.only(left: 2, right: 10),
-                        child: Builder(
-                          builder: (BuildContext context) {
-                            return _buildDisplayName(ownerId, 15, widget.darkMode);
-                          },
+                      Expanded(
+                        child: ListTile(
+                          leading:Container(
+                            margin: const EdgeInsets.only(top:5) ,
+                            child:Builder(
+                            builder: (BuildContext context) {
+                              return SizedBox(
+                                height: 60,
+                                width: 50,
+                                child:Builder(
+                                  builder: (BuildContext context) {
+                                    return _buildIcon(ownerId);
+                                  },
+                                ),
+                              );
+                            },
+                          ),),
+                          title: Builder(
+                            builder: (BuildContext context) {
+                              return _buildDisplayName(ownerId, 15, widget._darkMode);
+                            },
+                          ),
                         ),
                       ),
+                      if (user!.uid == ownerId)
+                        IconButton(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: const Text("Confirm Deletion"),
+                                  content: const Text("Are you sure you want to delete this post?"),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text("Cancel"),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        FirebaseDatabase.instance.ref().child("Postes").child(postId).remove();
+
+                                        Navigator.of(context).pop();
+                                      },
+                                      child: const Text("Delete"),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: widget._darkMode ? Colors.white : Colors.black,
+                          ),
+                        ),
                     ],
                   ),
                   Container(
@@ -351,56 +374,64 @@ class _ProfileState extends State<Profile> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       StreamBuilder(
-                        stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbLike').onValue,
-                        builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                          if (snapshot.hasError) {
+                        stream: FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('liked').onValue,
+                        builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> userSnapshot) {
+                          if (userSnapshot.hasError) {
                             return const Text("Error");
-                          } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
-                            nbLike = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
-                          } else {
-                            nbLike = 0;
                           }
-                          return Row(
-                            children: [
-                              GestureDetector(
-                                onTap: () async {
-                                  bool isLiked = likes.contains(postId);
+                          List<dynamic> likes = [];
+                          if (userSnapshot.hasData && userSnapshot.data?.snapshot.value != null) {
+                            likes = List<dynamic>.from(userSnapshot.data!.snapshot.value as Iterable);
+                          }
 
-                                  setState(() {
-                                    if (isLiked) {
-                                      likes.remove(postId);
-                                      if (nbLike! > 0) {
-                                        nbLike = nbLike! - 1;
-                                      }
-                                    } else {
-                                      likes.add(postId);
-                                      nbLike = nbLike! + 1;
-                                    }
-                                  });
-
-                                  await db.child(user!.uid).child('liked').set(likes);
-                                  await dbp.child(postId).child("nbLike").set(nbLike);
-
-                                  fetchData();
-                                },
-                                child: SizedBox(
-                                  height: 60,
-                                  width: 60,
-                                  child: Icon(
-                                    likes.contains(postId) ? Icons.favorite : Icons.favorite_border,
-                                    size: 32,
-                                    color: likes.contains(postId) ? Colors.red : (widget._darkMode ? Colors.white : Colors.black),
+                          return StreamBuilder(
+                            stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbLike').onValue,
+                            builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> postSnapshot) {
+                              if (postSnapshot.hasError) {
+                                return const Text("Error");
+                              }
+                              int nbLike = 0;
+                              if (postSnapshot.hasData && postSnapshot.data?.snapshot.value != null) {
+                                nbLike = int.tryParse(postSnapshot.data!.snapshot.value.toString()) ?? 0;
+                              }
+                              return Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () async {
+                                      setState(() {
+                                        if (likes.contains(postId)) {
+                                          likes.remove(postId);
+                                          if (nbLike > 0) {
+                                            nbLike--;
+                                          }
+                                        } else {
+                                          likes.add(postId);
+                                          nbLike++;
+                                        }
+                                      });
+                                      await FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('liked').set(likes);
+                                      await FirebaseDatabase.instance.ref().child("Postes").child(postId).child("nbLike").set(nbLike);
+                                    },
+                                    child: SizedBox(
+                                      height: 60,
+                                      width: 60,
+                                      child: Icon(
+                                        likes.contains(postId) ? Icons.favorite : Icons.favorite_border,
+                                        size: 32,
+                                        color: likes.contains(postId) ? Colors.red : (widget._darkMode ? Colors.white : Colors.black),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              Text(
-                                nbLike.toString(),
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  color: widget._darkMode ? Colors.white : Colors.black,
-                                ),
-                              ),
-                            ],
+                                  Text(
+                                    nbLike.toString(),
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: widget._darkMode ? Colors.white : Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         },
                       ),
@@ -489,16 +520,14 @@ class _ProfileState extends State<Profile> {
                                               TextField(
                                                 controller: _comment,
                                                 style: TextStyle(
-                                                  color: widget.darkMode ? Colors.white : Colors.black,
-                                                ),
+                                                    color: widget._darkMode ? Colors.white : Colors.black),
                                                 decoration: InputDecoration(
                                                   hintText: 'Add a comment',
                                                   hintStyle: TextStyle(
-                                                    color: widget.darkMode ? Colors.white : Colors.black,
-                                                  ),
+                                                      color: widget._darkMode ? Colors.white : Colors.black),
                                                   suffixIcon: IconButton(
                                                     icon: Icon(Icons.send,
-                                                        color: widget.darkMode ? Colors.white : Colors.black),
+                                                        color: widget._darkMode ? Colors.white : Colors.black),
                                                     onPressed: () async {
                                                       if (_comment.text.isNotEmpty) {
                                                         await dbp.child(postId).child('comments').push().set({
@@ -528,79 +557,82 @@ class _ProfileState extends State<Profile> {
                               child: Icon(
                                 Icons.mode_comment_outlined,
                                 size: 32,
-                                color: widget.darkMode ? Colors.white : Colors
-                                    .black,
+                                color: widget._darkMode ? Colors.white : Colors.black,
                               ),
                             ),
                           ),
                           Text(
                             "Comment",
                             style: TextStyle(
-                              color: widget.darkMode ? Colors.white : Colors.black,
+                              color: widget._darkMode ? Colors.white : Colors.black,
                               fontSize: 20,
                             ),
                           ),
                         ],
                       ),
                       StreamBuilder(
-                        stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbReports').onValue,
-                        builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                          if (snapshot.hasError) {
+                        stream: FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('reports').onValue,
+                        builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> userSnapshot) {
+                          if (userSnapshot.hasError) {
                             return const Text("Error");
-                          } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
-                            nbReports = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
-                          } else {
-                            nbReports = 0;
+                          }
+                          List<dynamic> reports = [];
+                          if (userSnapshot.hasData && userSnapshot.data?.snapshot.value != null) {
+                            reports = List<dynamic>.from(userSnapshot.data!.snapshot.value as Iterable);
                           }
 
-                          return Row(
-                            children: [
-                              GestureDetector(
-                                onTap: () async {
-                                  bool isReported = reports.contains(postId);
-
-                                  setState(() {
-                                    if (isReported) {
-                                      reports.remove(postId);
-                                      if (nbReports! > 0) {
-                                        nbReports = nbReports! - 1;
-                                      }
-                                    } else {
-                                      reports.add(postId);
-                                      nbReports = nbReports! + 1;
-                                    }
-                                  });
-
-                                  await db.child(user!.uid).child('reports').set(reports);
-                                  await dbp.child(postId).child("nbReports").set(nbReports);
-                                  setState(() {
-                                  });
-                                  fetchData();
-                                },
-                                child: SizedBox(
-                                  height: 60,
-                                  width: 60,
-                                  child: Icon(
-                                    reports.contains(postId) ? Icons.flag : Icons.outlined_flag,
-                                    size: 32,
-                                    color: reports.contains(postId) ? Colors.red : (widget._darkMode ? Colors.white : Colors.black),
+                          return StreamBuilder(
+                            stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbReports').onValue,
+                            builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> postSnapshot) {
+                              if (postSnapshot.hasError) {
+                                return const Text("Error");
+                              }
+                              int nbReports = 0;
+                              if (postSnapshot.hasData && postSnapshot.data?.snapshot.value != null) {
+                                nbReports = int.tryParse(postSnapshot.data!.snapshot.value.toString()) ?? 0;
+                              }
+                              return Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () async {
+                                      setState(() {
+                                        if (reports.contains(postId)) {
+                                          reports.remove(postId);
+                                          if (nbReports > 0) {
+                                            nbReports--;
+                                          }
+                                        } else {
+                                          reports.add(postId);
+                                          nbReports++;
+                                        }
+                                      });
+                                      await FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('reports').set(reports);
+                                      await FirebaseDatabase.instance.ref().child("Postes").child(postId).child("nbReports").set(reports);
+                                    },
+                                    child: SizedBox(
+                                      height: 60,
+                                      width: 60,
+                                      child: Icon(
+                                        reports.contains(postId) ? Icons.flag : Icons.flag_outlined,
+                                        size: 32,
+                                        color: reports.contains(postId) ? Colors.red : (widget._darkMode ? Colors.white : Colors.black),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              Text(
-                                "Report",
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  color: widget._darkMode ? Colors.white : Colors.black,
-                                ),
-                              ),
-                              Container(
-                                margin: EdgeInsets.only(right: 20),
-                              )
-                            ],
+                                  Text(
+                                    "Report",
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: widget._darkMode ? Colors.white : Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         },
-                      )
+                      ),
+                      Container(margin: const EdgeInsets.only(right: 15),)
                     ],
                   ),
                 ],

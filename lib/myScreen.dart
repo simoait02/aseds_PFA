@@ -185,7 +185,6 @@ class _ApplicationState extends State<Application> {
     );
   }
   final TextEditingController _comment = TextEditingController();
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -380,16 +379,8 @@ class _ApplicationState extends State<Application> {
                 item = _items[index];
                 String photoUrl = item.child("photoUrl").value.toString();
                 String ownerId = item.child("ownerId").value.toString();
-                int? nbReports;
-                int? nbLike;
                 final screenWidth = MediaQuery.of(context).size.width;
                 String postId = item.key!;
-                List<dynamic> likes = snapshot.child(user!.uid).child('liked').value != null
-                    ? List<dynamic>.from(snapshot.child(user!.uid).child('liked').value as Iterable)
-                    : [];
-                List<dynamic> reports = snapshot.child(user!.uid).child('reports').value != null
-                    ? List<dynamic>.from(snapshot.child(user!.uid).child('reports').value as Iterable)
-                    : [];
                 return Card(
                   elevation: 10,
                   key: ValueKey(item.key),
@@ -403,19 +394,21 @@ class _ApplicationState extends State<Application> {
                     children: [
                       Expanded(
                         child: ListTile(
-                          leading: Builder(
-                            builder: (BuildContext context) {
-                              return SizedBox(
-                                height: 60,
-                                width: 60,
-                                child:Builder(
-                                  builder: (BuildContext context) {
-                                    return _buildIcon(ownerId);
-                                  },
-                                ),
-                              );
-                            },
-                          ),
+                          leading: Container(
+                            margin: const EdgeInsets.only(top:5) ,
+                            child:Builder(
+                              builder: (BuildContext context) {
+                                return SizedBox(
+                                  height: 60,
+                                  width: 50,
+                                  child:Builder(
+                                    builder: (BuildContext context) {
+                                      return _buildIcon(ownerId);
+                                    },
+                                  ),
+                                );
+                              },
+                            ),),
                           title: Builder(
                             builder: (BuildContext context) {
                               return _buildDisplayName(ownerId, 15, _darkMode);
@@ -423,18 +416,6 @@ class _ApplicationState extends State<Application> {
                           ),
                         ),
                       ),
-                      if (user!.uid == ownerId)
-                        Container(
-                          child: IconButton(
-                            onPressed: () {
-                              FirebaseDatabase.instance.ref().child("Postes").child(postId).remove();
-                            },
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: _darkMode ? Colors.white : Colors.black,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                     Container(
@@ -460,63 +441,71 @@ class _ApplicationState extends State<Application> {
                         ),
                       ),
                        Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          StreamBuilder(
-                            stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbLike').onValue,
-                            builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                              if (snapshot.hasError) {
+                         mainAxisAlignment: MainAxisAlignment.spaceAround,
+                         children: [
+                           StreamBuilder(
+                             stream: FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('liked').onValue,
+                             builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> userSnapshot) {
+                              if (userSnapshot.hasError) {
                                 return const Text("Error");
-                              } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
-                                nbLike = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
-                              } else {
-                                nbLike = 0;
                               }
-                              return Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () async {
-                                      bool isLiked = likes.contains(postId);
+                              List<dynamic> likes = [];
+                              if (userSnapshot.hasData && userSnapshot.data?.snapshot.value != null) {
+                                likes = List<dynamic>.from(userSnapshot.data!.snapshot.value as Iterable);
+                              }
 
-                                      setState(() {
-                                        if (isLiked) {
-                                          likes.remove(postId);
-                                          if (nbLike! > 0) {
-                                            nbLike = nbLike! - 1;
-                                          }
-                                        } else {
-                                          likes.add(postId);
-                                          nbLike = nbLike! + 1;
-                                        }
-                                      });
-
-                                      await db.child(user!.uid).child('liked').set(likes);
-                                      await dbp.child(postId).child("nbLike").set(nbLike);
-
-                                      fetchData();
-                                    },
-                                    child: SizedBox(
-                                      height: 60,
-                                      width: 60,
-                                      child: Icon(
-                                        likes.contains(postId) ? Icons.favorite : Icons.favorite_border,
-                                        size: 32,
-                                        color: likes.contains(postId) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                              return StreamBuilder(
+                                stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbLike').onValue,
+                                builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> postSnapshot) {
+                                  if (postSnapshot.hasError) {
+                                    return const Text("Error");
+                                  }
+                                  int nbLike = 0;
+                                  if (postSnapshot.hasData && postSnapshot.data?.snapshot.value != null) {
+                                    nbLike = int.tryParse(postSnapshot.data!.snapshot.value.toString()) ?? 0;
+                                  }
+                                  return Row(
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () async {
+                                          setState(() {
+                                            if (likes.contains(postId)) {
+                                              likes.remove(postId);
+                                              if (nbLike > 0) {
+                                                nbLike--;
+                                              }
+                                            } else {
+                                              likes.add(postId);
+                                              nbLike++;
+                                            }
+                                          });
+                                          await FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('liked').set(likes);
+                                          await FirebaseDatabase.instance.ref().child("Postes").child(postId).child("nbLike").set(nbLike);
+                                        },
+                                        child: SizedBox(
+                                          height: 60,
+                                          width: 60,
+                                          child: Icon(
+                                            likes.contains(postId) ? Icons.favorite : Icons.favorite_border,
+                                            size: 32,
+                                            color: likes.contains(postId) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  Text(
-                                    nbLike.toString(),
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      color: _darkMode ? Colors.white : Colors.black,
-                                    ),
-                                  ),
-                                ],
+                                      Text(
+                                        nbLike.toString(),
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          color: _darkMode ? Colors.white : Colors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               );
                             },
                           ),
-                          Row(
+                           Row(
                             children: [
                               GestureDetector(
                                 onTap: () {
@@ -651,65 +640,69 @@ class _ApplicationState extends State<Application> {
                               ),
                             ],
                           ),
-                          StreamBuilder(
-                            stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbReports').onValue,
-                            builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
-                              if (snapshot.hasError) {
-                                return const Text("Error");
-                              } else if (snapshot.hasData && snapshot.data?.snapshot.value != null) {
-                                nbReports = int.tryParse(snapshot.data!.snapshot.value.toString()) ?? 0;
-                              } else {
-                                nbReports = 0;
-                              }
+                           StreamBuilder(
+                             stream: FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('reports').onValue,
+                             builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> userSnapshot) {
+                               if (userSnapshot.hasError) {
+                                 return const Text("Error");
+                               }
+                               List<dynamic> reports = [];
+                               if (userSnapshot.hasData && userSnapshot.data?.snapshot.value != null) {
+                                 reports = List<dynamic>.from(userSnapshot.data!.snapshot.value as Iterable);
+                               }
 
-                              return Row(
-                                children: [
-                                  GestureDetector(
-                                    onTap: () async {
-                                      bool isReported = reports.contains(postId);
-
-                                      setState(() {
-                                        if (isReported) {
-                                          reports.remove(postId);
-                                          if (nbReports! > 0) {
-                                            nbReports = nbReports! - 1;
-                                          }
-                                        } else {
-                                          reports.add(postId);
-                                          nbReports = nbReports! + 1;
-                                        }
-                                      });
-
-                                      await db.child(user!.uid).child('reports').set(reports);
-                                      await dbp.child(postId).child("nbReports").set(nbReports);
-                                      setState(() {
-                                      });
-                                      fetchData();
-                                    },
-                                    child: SizedBox(
-                                      height: 60,
-                                      width: 60,
-                                      child: Icon(
-                                        reports.contains(postId) ? Icons.flag : Icons.outlined_flag,
-                                        size: 32,
-                                        color: reports.contains(postId) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
-                                      ),
-                                    ),
-                                  ),
-                                   Text(
-                                      "Report",
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        color: _darkMode ? Colors.white : Colors.black,
-                                      ),
-                                    ),
-                                  Container(
-                                    margin: EdgeInsets.only(right: 20),
-                                  )
-                                ],
-                              );
-                            },
-                          )
+                               return StreamBuilder(
+                                 stream: FirebaseDatabase.instance.ref().child("Postes").child(postId).child('nbReports').onValue,
+                                 builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> postSnapshot) {
+                                   if (postSnapshot.hasError) {
+                                     return const Text("Error");
+                                   }
+                                   int nbReports = 0;
+                                   if (postSnapshot.hasData && postSnapshot.data?.snapshot.value != null) {
+                                     nbReports = int.tryParse(postSnapshot.data!.snapshot.value.toString()) ?? 0;
+                                   }
+                                   return Row(
+                                     children: [
+                                       GestureDetector(
+                                         onTap: () async {
+                                           setState(() {
+                                             if (reports.contains(postId)) {
+                                               reports.remove(postId);
+                                               if (nbReports > 0) {
+                                                 nbReports--;
+                                               }
+                                             } else {
+                                               reports.add(postId);
+                                               nbReports++;
+                                             }
+                                           });
+                                           await FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('reports').set(reports);
+                                           await FirebaseDatabase.instance.ref().child("Postes").child(postId).child("nbReports").set(reports);
+                                         },
+                                         child: SizedBox(
+                                           height: 60,
+                                           width: 60,
+                                           child: Icon(
+                                             reports.contains(postId) ? Icons.flag : Icons.flag_outlined,
+                                             size: 32,
+                                             color: reports.contains(postId) ? Colors.red : (_darkMode ? Colors.white : Colors.black),
+                                           ),
+                                         ),
+                                       ),
+                                       Text(
+                                         "Report",
+                                         style: TextStyle(
+                                           fontSize: 20,
+                                           color: _darkMode ? Colors.white : Colors.black,
+                                         ),
+                                       ),
+                                     ],
+                                   );
+                                 },
+                               );
+                             },
+                           ),
+                           Container(margin: const EdgeInsets.only(right: 15),)
                         ],
                       ),
                     ],
