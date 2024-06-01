@@ -9,7 +9,7 @@ class PostMonitorService {
 
   void _onPostChanged(DatabaseEvent event) {
     final data = event.snapshot.value as Map<dynamic, dynamic>;
-    final nbReports = data['nbReports'] as int;
+    final nbReports = data["nbReports"] as int;
 
     if (nbReports >= 5) {
       final postId = event.snapshot.key;
@@ -20,10 +20,11 @@ class PostMonitorService {
   Future<void> _deletePost(String? postId) async {
     if (postId != null) {
       await _postRef.child(postId).remove().then((_) {
-        print('Post $postId deleted successfully.');
       }).catchError((error) {
-        print('Failed to delete post $postId: $error');
+        print('******************************** $error');
       });
     }
   }
 }
+
+

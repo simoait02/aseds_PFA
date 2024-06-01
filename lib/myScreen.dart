@@ -677,7 +677,7 @@ class _ApplicationState extends State<Application> {
                                              }
                                            });
                                            await FirebaseDatabase.instance.ref().child("users").child(user!.uid).child('reports').set(reports);
-                                           await FirebaseDatabase.instance.ref().child("Postes").child(postId).child("nbReports").set(reports);
+                                           await FirebaseDatabase.instance.ref().child("Postes").child(postId).child("nbReports").set(nbReports);
                                          },
                                          child: SizedBox(
                                            height: 60,
