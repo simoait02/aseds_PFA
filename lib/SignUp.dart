@@ -17,7 +17,7 @@ class Register extends StatefulWidget{
   }
 
 class _RegisterState extends State<Register>{
-  final DatabaseReference _db = FirebaseDatabase.instance.reference();
+  final DatabaseReference _db = FirebaseDatabase.instance.ref("users");
   final TextEditingController _email = TextEditingController();
   final TextEditingController _username = TextEditingController();
   final TextEditingController _password = TextEditingController();
@@ -109,7 +109,6 @@ class _RegisterState extends State<Register>{
                           });
                         },
                         icon: Icon(
-                          // Based on passwordVisible state choose the icon
                           _statePassword
                               ? Icons.visibility
                               : Icons.visibility_off,
@@ -135,7 +134,6 @@ class _RegisterState extends State<Register>{
                           });
                         },
                         icon: Icon(
-                          // Based on passwordVisible state choose the icon
                           _stateCoPassword
                               ? Icons.visibility
                               : Icons.visibility_off,
@@ -193,7 +191,7 @@ class _RegisterState extends State<Register>{
                             var user = FirebaseAuth.instance.currentUser;
                             if (user!=null){
                               user.updateDisplayName(_username.text).then((_) async {
-                                await _db.child('users').child(user.uid).set({
+                                await _db.child(user.uid).set({
                                   "displayName":_username.text,
                                   "email":user.email,
                                   "photoUrl":user.photoURL

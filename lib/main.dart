@@ -266,7 +266,7 @@ class _LoginState extends State<Login> {
                           );
                           Navigator.push(context, MaterialPageRoute(builder: (context) => Application()));
                         } catch (e) {
-                          print("**********************************"+e.toString());
+                          print("**********************************$e");
                           Fluttertoast.showToast(
                               msg: "Error signing in with Facebook",
                               toastLength: Toast.LENGTH_SHORT,
@@ -283,17 +283,14 @@ class _LoginState extends State<Login> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                      child: const Text("Don't have an account! ")),
-                  Container(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context)=>const Register()));
-                      },
-                      child: const Text(
-                        "register now!",
-                        style: TextStyle(color: Color(0xFF75399F)),
-                      ),
+                  const Text("Don't have an account! "),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context)=>const Register()));
+                    },
+                    child: const Text(
+                      "register now!",
+                      style: TextStyle(color: Color(0xFF75399F)),
                     ),
                   ),
                 ],
