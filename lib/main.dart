@@ -267,12 +267,14 @@ class _LoginState extends State<Login> {
                           Navigator.push(context, MaterialPageRoute(builder: (context) => Application()));
                         } catch (e) {
                           print("**********************************$e");
-                          Fluttertoast.showToast(
-                              msg: "Error signing in with Facebook",
-                              toastLength: Toast.LENGTH_SHORT,
-                              gravity: ToastGravity.BOTTOM,
-                              backgroundColor: Colors.red,
-                              textColor: Colors.white,);
+                          if(e.toString()!="Null check operator used on a null value"){
+                            Fluttertoast.showToast(
+                                msg: "Error signing in with Facebook",
+                                toastLength: Toast.LENGTH_SHORT,
+                                gravity: ToastGravity.BOTTOM,
+                                backgroundColor: Colors.red,
+                                textColor: Colors.white,);
+                          }
                         }
                       },
                       icon: Image.asset("assets/facebook.png"),
